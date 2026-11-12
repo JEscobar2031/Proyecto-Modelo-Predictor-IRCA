@@ -1,0 +1,69 @@
+{% extends 'predictor/base.html' %}
+
+{% block title %}Iniciar Sesión - Predictor IRCA{% endblock %}
+
+{% block content %}
+<!--
+  VISTA DE LOGIN (login.html)
+  Formulario de autenticación del sistema. Usa la vista genérica LoginView de Django.
+  Elementos clave:
+  - Mensajes de error cuando las credenciales son incorrectas.
+  - Aviso cuando el usuario intenta entrar a una página protegida (variable "next").
+  - Token CSRF obligatorio para proteger el formulario contra ataques externos.
+  - Campo oculto "next" que conserva la ruta original a la que el usuario quería ir.
+  La sesión es obligatoria: todas las vistas del predictor usan @login_required.
+-->
+<div class="login-container">
+    <div class="login-card">
+        <div class="text-center mb-4">
+            <i class="bi bi-droplet-fill text-primary" style="font-size: 3rem;"></i>
+            <h3 class="mt-2">Predictor IRCA</h3>
+            <p class="text-muted">Inicia sesión para acceder al sistema de predicción</p>
+        </div>
+
+        {% if form.errors %}
+        <div class="alert alert-danger">
+            <i class="bi bi-exclamation-triangle me-2"></i>
+            Usuario o contraseña incorrectos.
+        </div>
+        {% endif %}
+
+        {% if next %}
+            {% if user.is_authenticated %}
+            <div class="alert alert-warning">
+                No tienes permiso para acceder a esta página.
+            </div>
+            {% else %}
+            <div class="alert alert-info">
+                Debes iniciar sesión para continuar.
+            </div>
+            {% endif %}
+        {% endif %}
+
+        <form method="post" action="{% url 'predictor:login' %}">
+            {% csrf_token %}
+            <input type="hidden" name="next" value="{{ next }}">
+            
+            <div class="mb-3">
+                <label for="id_username" class="form-label">Usuario</label>
+                <input type="text" class="form-control" id="id_username" name="username" required autofocus>
+            </div>
+            
+            <div class="mb-4">
+                <label for="id_password" class="form-label">Contraseña</label>
+                <input type="password" class="form-control" id="id_password" name="password" required>
+            </div>
+            
+            <div class="d-grid">
+                <button type="submit" class="btn btn-predecir text-white">
+                    <i class="bi bi-box-arrow-in-right me-2"></i>Iniciar Sesión
+                </button>
+            </div>
+        </form>
+        <p class="text-center mt-3 mb-0">
+            ¿No tienes cuenta?
+            <a href="{% url 'predictor:register' %}">Crear una cuenta</a>
+        </p>
+    </div>
+</div>
+{% endblock content %}

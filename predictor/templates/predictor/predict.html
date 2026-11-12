@@ -1,0 +1,362 @@
+{% extends 'predictor/base.html' %}
+
+{% block title %}Predecir IRCA - Predictor{% endblock %}
+
+{% block content %}
+<!-- 
+  VISTA DE PREDICCIÓN (predict.html)
+  Interfaz interactiva donde el usuario puede:
+  1. Seleccionar el modelo de Machine Learning deseado (Random Forest o Regresión Logística, CDA o CDB).
+  2. Ingresar los valores de los parámetros fisicoquímicos y microbiológicos del agua (pH, turbiedad, cloro, etc.).
+  3. Enviar el formulario por método POST para procesar la inferencia en el backend de Django.
+  4. Visualizar los resultados detallados de la predicción:
+     - Nivel de riesgo sanitario clasificado (Sin riesgo, bajo, medio, alto, inviable).
+     - Porcentaje de confianza del modelo.
+     - Importancia de características (Feature Importance) en formato gráfico de barras.
+     - Estimación del IRCA normativo basado en la Resolución 2115 de 2007.
+-->
+<div class="row">
+    <div class="col-lg-8 mx-auto">
+        <!-- Encabezado -->
+        <div class="text-center mb-4">
+            <h2><i class="bi bi-graph-up me-2"></i>Predicción de Calidad del Agua</h2>
+            <p class="text-muted">Ingresa los valores de las variables para obtener una predicción del nivel de riesgo IRCA.</p>
+        </div>
+
+        <!-- Alerta de Error -->
+        {% if result.error %}
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            <i class="bi bi-exclamation-triangle-fill me-2"></i>
+            <strong>Error:</strong> {{ result.error }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+        {% endif %}
+
+        <!-- Formulario de Predicción -->
+        <div class="card card-modelo mb-4">
+            <div class="card-header">
+                <i class="bi bi-sliders me-2"></i>Parámetros de Entrada
+            </div>
+            <div class="card-body">
+                <form method="post" action="{% url 'predictor:predict' %}" id="predictionForm">
+                    {% csrf_token %}
+
+                    <!-- Selección de Modelo -->
+                    <div class="mb-4">
+                        <label for="model" class="form-label fw-bold">
+                            <i class="bi bi-cpu me-1"></i>Seleccionar Modelo
+                        </label>
+                        <select class="form-select form-select-lg" id="model" name="model" required>
+                            <option value="" disabled {% if not selected_model %}selected{% endif %}>-- Selecciona un modelo --</option>
+                            {% for key, model in models.items %}
+                            <option value="{{ key }}" {% if selected_model == key %}selected{% endif %}>
+                                {{ model.name }} ({{ model.desc }})
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <!-- Variables del Modelo -->
+                    <div id="variablesContainer">
+                        <h5 class="mb-3"><i class="bi bi-list-check me-2"></i>Variables de Entrada</h5>
+                        
+                        <!-- Variables CDA (6 variables) -->
+                        <div id="vars-cda" class="variables-group" style="display: none;">
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label for="pH" class="form-label">pH</label>
+                                    <input type="number" class="form-control" id="pH" name="pH" 
+                                           min="0" max="14" step="0.1" placeholder="7.0"
+                                           value="{{ result.values.pH|default:'' }}">
+                                    <div class="form-text">Rango: 0 - 14 (ideal: 6.5 - 8.5)</div>
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="Turbiedad_UNT" class="form-label">Turbiedad (UNT)</label>
+                                    <input type="number" class="form-control" id="Turbiedad_UNT" name="Turbiedad_UNT" 
+                                           min="0" max="100" step="0.1" placeholder="5.0"
+                                           value="{{ result.values.Turbiedad_UNT|default:'' }}">
+                                    <div class="form-text">Rango: 0 - 100 UNT</div>
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="Color_UPC" class="form-label">Color (UPC)</label>
+                                    <input type="number" class="form-control" id="Color_UPC" name="Color_UPC" 
+                                           min="0" max="100" step="0.1" placeholder="10.0"
+                                           value="{{ result.values.Color_UPC|default:'' }}">
+                                    <div class="form-text">Rango: 0 - 100 UPC</div>
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="Cloro_residual_mgL" class="form-label">Cloro residual (mg/L)</label>
+                                    <input type="number" class="form-control" id="Cloro_residual_mgL" name="Cloro_residual_mgL" 
+                                           min="0" max="5" step="0.01" placeholder="0.5"
+                                           value="{{ result.values.Cloro_residual_mgL|default:'' }}">
+                                    <div class="form-text">Rango: 0 - 5 mg/L</div>
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="Coliformes_totales_UFC_100mL" class="form-label">Coliformes totales (UFC/100mL)</label>
+                                    <input type="number" class="form-control" id="Coliformes_totales_UFC_100mL" name="Coliformes_totales_UFC_100mL" 
+                                           min="0" max="10000" step="1" placeholder="100"
+                                           value="{{ result.values.Coliformes_totales_UFC_100mL|default:'' }}">
+                                    <div class="form-text">Rango: 0 - 10000 UFC/100mL</div>
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="Ecoli_UFC_100mL" class="form-label">E. coli (UFC/100mL)</label>
+                                    <input type="number" class="form-control" id="Ecoli_UFC_100mL" name="Ecoli_UFC_100mL" 
+                                           min="0" max="10000" step="1" placeholder="50"
+                                           value="{{ result.values.Ecoli_UFC_100mL|default:'' }}">
+                                    <div class="form-text">Rango: 0 - 10000 UFC/100mL</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Variables CDB (9 variables) -->
+                        <div id="vars-cdb" class="variables-group" style="display: none;">
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label for="pH" class="form-label">pH</label>
+                                    <input type="number" class="form-control" id="pH" name="pH" 
+                                           min="0" max="14" step="0.1" placeholder="7.0"
+                                           value="{{ result.values.pH|default:'' }}">
+                                    <div class="form-text">Rango: 0 - 14 (ideal: 6.5 - 8.5)</div>
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="Turbiedad_UNT" class="form-label">Turbiedad (UNT)</label>
+                                    <input type="number" class="form-control" id="Turbiedad_UNT" name="Turbiedad_UNT" 
+                                           min="0" max="100" step="0.1" placeholder="5.0"
+                                           value="{{ result.values.Turbiedad_UNT|default:'' }}">
+                                    <div class="form-text">Rango: 0 - 100 UNT</div>
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="Color_UPC" class="form-label">Color (UPC)</label>
+                                    <input type="number" class="form-control" id="Color_UPC" name="Color_UPC" 
+                                           min="0" max="100" step="0.1" placeholder="10.0"
+                                           value="{{ result.values.Color_UPC|default:'' }}">
+                                    <div class="form-text">Rango: 0 - 100 UPC</div>
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="Cloro_residual_mgL" class="form-label">Cloro residual (mg/L)</label>
+                                    <input type="number" class="form-control" id="Cloro_residual_mgL" name="Cloro_residual_mgL" 
+                                           min="0" max="5" step="0.01" placeholder="0.5"
+                                           value="{{ result.values.Cloro_residual_mgL|default:'' }}">
+                                    <div class="form-text">Rango: 0 - 5 mg/L</div>
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="Coliformes_totales_UFC_100mL" class="form-label">Coliformes totales (UFC/100mL)</label>
+                                    <input type="number" class="form-control" id="Coliformes_totales_UFC_100mL" name="Coliformes_totales_UFC_100mL" 
+                                           min="0" max="10000" step="1" placeholder="100"
+                                           value="{{ result.values.Coliformes_totales_UFC_100mL|default:'' }}">
+                                    <div class="form-text">Rango: 0 - 10000 UFC/100mL</div>
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="Ecoli_UFC_100mL" class="form-label">E. coli (UFC/100mL)</label>
+                                    <input type="number" class="form-control" id="Ecoli_UFC_100mL" name="Ecoli_UFC_100mL" 
+                                           min="0" max="10000" step="1" placeholder="50"
+                                           value="{{ result.values.Ecoli_UFC_100mL|default:'' }}">
+                                    <div class="form-text">Rango: 0 - 10000 UFC/100mL</div>
+                                </div>
+                                <div class="col-md-4">
+                                    <label for="Temperatura_C" class="form-label">Temperatura (°C)</label>
+                                    <input type="number" class="form-control" id="Temperatura_C" name="Temperatura_C" 
+                                           min="0" max="50" step="0.1" placeholder="20.0"
+                                           value="{{ result.values.Temperatura_C|default:'' }}">
+                                    <div class="form-text">Rango: 0 - 50 °C</div>
+                                </div>
+                                <div class="col-md-4">
+                                    <label for="Conductividad_uS_cm" class="form-label">Conductividad (µS/cm)</label>
+                                    <input type="number" class="form-control" id="Conductividad_uS_cm" name="Conductividad_uS_cm" 
+                                           min="0" max="2000" step="1" placeholder="500"
+                                           value="{{ result.values.Conductividad_uS_cm|default:'' }}">
+                                    <div class="form-text">Rango: 0 - 2000 µS/cm</div>
+                                </div>
+                                <div class="col-md-4">
+                                    <label for="THMs_ppb" class="form-label">THMs (ppb)</label>
+                                    <input type="number" class="form-control" id="THMs_ppb" name="THMs_ppb" 
+                                           min="0" max="500" step="0.1" placeholder="50"
+                                           value="{{ result.values.THMs_ppb|default:'' }}">
+                                    <div class="form-text">Rango: 0 - 500 ppb</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Botón Predecir -->
+                    <div class="d-grid gap-2 mt-4">
+                        <button type="submit" class="btn btn-predecir btn-lg text-white">
+                            <i class="bi bi-lightning-charge me-2"></i>Predecir
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Panel de Resultados -->
+        {% if result and not result.error %}
+        <div class="resultado-panel">
+            <h4 class="mb-4"><i class="bi bi-clipboard-data me-2"></i>Resultados de la Predicción</h4>
+            
+            <!-- Nivel de Riesgo Predicho: se pinta un color distinto por cada una de las 5 clases del IRCA -->
+            <div class="text-center mb-4">
+                <h5 class="text-muted mb-2">Nivel de Riesgo Predicho</h5>
+                {% if result.prediction == 'Sin riesgo' %}
+                    <span class="badge badge-riesgo bg-success">
+                        <i class="bi bi-check-circle me-1"></i>{{ result.prediction }}
+                    </span>
+                {% elif result.prediction == 'Riesgo bajo' %}
+                    <span class="badge badge-riesgo bg-warning text-dark">
+                        <i class="bi bi-exclamation-circle me-1"></i>{{ result.prediction }}
+                    </span>
+                {% elif result.prediction == 'Riesgo medio' %}
+                    <span class="badge badge-riesgo bg-orange" style="background-color: #fd7e14;">
+                        <i class="bi bi-exclamation-triangle me-1"></i>{{ result.prediction }}
+                    </span>
+                {% elif result.prediction == 'Riesgo alto' %}
+                    <span class="badge badge-riesgo bg-danger">
+                        <i class="bi bi-exclamation-octagon me-1"></i>{{ result.prediction }}
+                    </span>
+                {% elif result.prediction == 'Inviable sanitariamente' %}
+                    <span class="badge badge-riesgo" style="background-color: #6f42c1;">
+                        <i class="bi bi-x-octagon me-1"></i>{{ result.prediction }}
+                    </span>
+                {% else %}
+                    <span class="badge badge-riesgo bg-secondary">
+                        <i class="bi bi-question-circle me-1"></i>{{ result.prediction }}
+                    </span>
+                {% endif %}
+            </div>
+
+            <!-- Porcentaje de Confianza -->
+            <div class="mb-4">
+                <div class="d-flex justify-content-between align-items-center mb-1">
+                    <span class="fw-bold">Confianza del modelo</span>
+                    <span class="text-primary fw-bold">{{ result.confidence|floatformat:1 }}%</span>
+                </div>
+                <div class="progress" style="height: 1.25rem;">
+                    <div class="progress-bar" role="progressbar" 
+                         style="width: {{ result.confidence|floatformat:1 }}%"
+                         aria-valuenow="{{ result.confidence|floatformat:1 }}" 
+                         aria-valuemin="0" aria-valuemax="100">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Barras de Probabilidad: probabilidad que asigna el modelo a cada uno de los 5 niveles -->
+            <div class="mb-4">
+                <h6 class="mb-3"><i class="bi bi-bar-chart me-2"></i>Probabilidad por Nivel de Riesgo</h6>
+                {% for prob in result.all_probabilities %}
+                <div class="mb-2">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <small>{{ prob.level }}</small>
+                        <small class="fw-bold">{{ prob.prob|floatformat:1 }}%</small>
+                    </div>
+                    <div class="progress" style="height: 0.6rem;">
+                        {% if prob.level == 'Sin riesgo' %}
+                            <div class="progress-bar bg-success" role="progressbar" 
+                                 style="width: {{ prob.prob|floatformat:1 }}%"></div>
+                        {% elif prob.level == 'Riesgo bajo' %}
+                            <div class="progress-bar bg-warning" role="progressbar" 
+                                 style="width: {{ prob.prob|floatformat:1 }}%"></div>
+                        {% elif prob.level == 'Riesgo medio' %}
+                            <div class="progress-bar" role="progressbar" 
+                                 style="width: {{ prob.prob|floatformat:1 }}%; background-color: #fd7e14;"></div>
+                        {% elif prob.level == 'Riesgo alto' %}
+                            <div class="progress-bar bg-danger" role="progressbar" 
+                                 style="width: {{ prob.prob|floatformat:1 }}%"></div>
+                        {% elif prob.level == 'Inviable sanitariamente' %}
+                            <div class="progress-bar" role="progressbar" 
+                                 style="width: {{ prob.prob|floatformat:1 }}%; background-color: #6f42c1;"></div>
+                        {% else %}
+                            <div class="progress-bar bg-secondary" role="progressbar" 
+                                 style="width: {{ prob.prob|floatformat:1 }}%"></div>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+
+            <!-- Variable Más Influyente: solo aparece en Random Forest, que expone feature_importances_ -->
+            {% if result.feature_importance %}
+            <div class="mb-4">
+                <h6 class="mb-2"><i class="bi bi-star me-2"></i>Variable Más Influyente</h6>
+                <p class="mb-0">
+                    <span class="variable-tag">
+                        {{ result.feature_importance.0.0 }}
+                    </span>
+                    <small class="text-muted ms-2">
+                        (Importancia: {{ result.feature_importance.0.1|floatformat:4 }})
+                    </small>
+                </p>
+            </div>
+            {% endif %}
+
+            <!-- IRCA Calculado: valor complementario calculado con reglas de la Resolución 2115 de 2007 -->
+            <div class="mb-4">
+                <h6 class="mb-2"><i class="bi bi-calculator me-2"></i>IRCA Calculado</h6>
+                <div class="d-flex align-items-center">
+                    <span class="fs-4 fw-bold text-primary">{{ result.irca|floatformat:2 }}%</span>
+                    <span class="ms-2 text-muted">de riesgo</span>
+                </div>
+            </div>
+
+            <!-- Valores Ingresados -->
+            <div>
+                <h6 class="mb-3"><i class="bi bi-table me-2"></i>Valores Ingresados</h6>
+                <div class="table-responsive">
+                    <table class="table table-valores table-striped table-hover">
+                        <thead>
+                            <tr>
+                                <th>Variable</th>
+                                <th>Valor</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for var, val in result.values.items %}
+                            <tr>
+                                <td><code>{{ var }}</code></td>
+                                <td class="fw-bold">{{ val|floatformat:2 }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- JavaScript para mostrar/ocultar variables según el modelo -->
+<!--
+  Este script se ejecuta en el navegador (no requiere recargar la página).
+  Su función es mostrar únicamente los campos que el modelo elegido necesita:
+  - Modelos CDA (rf_cda / lr_cda): 6 variables básicas.
+  - Modelos CDB (rf_cdb / lr_cdb): 9 variables ampliadas.
+  Se ejecuta al cargar la página y cada vez que el usuario cambia el selector de modelo.
+-->
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const modelSelect = document.getElementById('model');
+        const varsCda = document.getElementById('vars-cda');
+        const varsCdb = document.getElementById('vars-cdb');
+
+        function updateVariables() {
+            const selectedModel = modelSelect.value;
+            
+            // Ocultar ambos grupos
+            varsCda.style.display = 'none';
+            varsCdb.style.display = 'none';
+
+            // Mostrar el grupo correspondiente
+            if (selectedModel === 'rf_cda' || selectedModel === 'lr_cda') {
+                varsCda.style.display = 'block';
+            } else if (selectedModel === 'rf_cdb' || selectedModel === 'lr_cdb') {
+                varsCdb.style.display = 'block';
+            }
+        }
+
+        // Ejecutar al cargar la página
+        updateVariables();
+
+        // Ejecutar cuando cambia la selección
+        modelSelect.addEventListener('change', updateVariables);
+    });
+</script>
+{% endblock content %}

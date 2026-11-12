@@ -1,0 +1,128 @@
+{% extends 'predictor/base.html' %}
+
+{% block title %}Modelo Predictivo IRCA - Inicio{% endblock %}
+
+{% block content %}
+<!-- 
+  VISTA DE INICIO (home.html)
+  Panel de control principal que presenta:
+  1. Sección Hero con el título y resumen del sistema de Machine Learning.
+  2. Sección explicativa sobre el proyecto y su importancia en la salud pública.
+  3. Tarjetas dinámicas (Cards) con los modelos disponibles (Random Forest y Regresión Logística, CDA y CDB), 
+     su precisión y un botón directo para utilizarlos.
+  4. Sección informativa detallando qué es el IRCA según la Resolución 2115 de 2007 en Colombia y sus rangos de riesgo.
+-->
+
+<!-- Hero Section -->
+<section class="hero-section">
+    <h1><i class="bi bi-droplet-fill me-2"></i>Modelo Predictivo IRCA</h1>
+    <p>
+        Sistema inteligente de predicción del Índice de Riesgo de la Calidad del Agua (IRCA)
+        utilizando modelos de Machine Learning entrenados con datos históricos de calidad del agua.
+    </p>
+</section>
+
+<!-- Explicación del Proyecto -->
+<section class="mb-5">
+    <div class="info-irca">
+        <h4 class="mb-3"><i class="bi bi-info-circle me-2"></i>Sobre el Proyecto</h4>
+        <p class="mb-2">
+            El <strong>Índice de Riesgo de la Calidad del Agua (IRCA)</strong> es un indicador utilizado en Colombia
+            para evaluar el nivel de riesgo que representa el consumo de agua para la salud humana. Este índice
+            se calcula a partir de diversas variables fisicoquímicas y microbiológicas del agua.
+        </p>
+        <p class="mb-2">
+            Nuestro sistema utiliza algoritmos de <strong>Machine Learning</strong> avanzados, incluyendo
+            <em>Random Forest</em> y <em>Regresión Logística</em>, para predecir el nivel de riesgo del agua
+            de manera rápida y precisa. Los modelos fueron entrenados con datos históricos y alcanzan precisiones
+            superiores al 86% en la clasificación de los diferentes niveles de riesgo.
+        </p>
+        <p class="mb-0">
+            El sistema clasifica el agua en <strong>cinco niveles de riesgo</strong>: Sin riesgo, Riesgo bajo,
+            Riesgo medio, Riesgo alto e Inviable sanitariamente, brindando una herramienta valiosa para la
+            toma de decisiones en la gestión de la calidad del agua.
+        </p>
+    </div>
+</section>
+
+<!-- Cards de Modelos -->
+<section class="mb-5">
+    <h3 class="mb-4"><i class="bi bi-cpu me-2"></i>Modelos Disponibles</h3>
+    <div class="row g-4">
+        {% for key, model in models.items %}
+        <div class="col-md-6">
+            <div class="card card-modelo h-100">
+                <div class="card-header">
+                    <i class="bi bi-robot me-2"></i>{{ model.name }}
+                </div>
+                <div class="card-body">
+                    <p class="card-text text-muted mb-3">{{ model.desc }}</p>
+                    
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span class="variable-tag">
+                            <i class="bi bi-list-ol me-1"></i>
+                            {% if model.vars == 'cda' %}6 variables{% else %}9 variables{% endif %}
+                        </span>
+                    </div>
+
+                    <div class="mb-3">
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <small class="text-muted">Precisión del modelo</small>
+                            <small class="fw-bold text-primary">{{ model.accuracy|floatformat:2 }}%</small>
+                        </div>
+                        <div class="progress">
+                            <div class="progress-bar" role="progressbar" 
+                                 style="width: {{ model.accuracy|floatformat:2 }}%"
+                                 aria-valuenow="{{ model.accuracy|floatformat:2 }}" 
+                                 aria-valuemin="0" aria-valuemax="100">
+                            </div>
+                        </div>
+                    </div>
+
+                    <a href="{% url 'predictor:predict' %}?model={{ key }}" class="btn btn-predecir w-100 text-white">
+                        <i class="bi bi-play-circle me-2"></i>Usar este modelo
+                    </a>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</section>
+
+<!-- ¿Qué es el IRCA? -->
+<section class="mb-5">
+    <div class="info-irca">
+        <h4 class="mb-3"><i class="bi bi-question-circle me-2"></i>¿Qué es el IRCA?</h4>
+        <p class="mb-2">
+            El <strong>Índice de Riesgo de la Calidad del Agua (IRCA)</strong> es un indicador establecido por el
+            Ministerio de Salud y Protección Social de Colombia, que evalúa el riesgo para la salud humana
+            asociado al consumo de agua no potable.
+        </p>
+        <p class="mb-2">
+            El índice se expresa como un porcentaje que va de <strong>0% a 100%</strong>, donde:
+        </p>
+        <ul class="mb-2">
+            <li><strong>0% - 5%:</strong> Sin riesgo (agua apta para consumo humano)</li>
+            <li><strong>5% - 14%:</strong> Riesgo bajo</li>
+            <li><strong>14% - 35%:</strong> Riesgo medio</li>
+            <li><strong>35% - 45%:</strong> Riesgo alto</li>
+            <li><strong>Mayor a 45%:</strong> Inviable sanitariamente</li>
+        </ul>
+        <p class="mb-0">
+            Las variables consideradas incluyen pH, turbiedad, color, cloro residual, coliformes totales,
+            E. coli, temperatura, conductividad y THMs (Trihalometanos), entre otras.
+        </p>
+    </div>
+</section>
+
+<!-- Llamado a la Acción -->
+<section class="text-center mb-5">
+    <div class="info-irca">
+        <h4 class="mb-3"><i class="bi bi-rocket-takeoff me-2"></i>¿Listo para predecir?</h4>
+        <p class="mb-3">Selecciona un modelo y comienza a evaluar la calidad del agua con nuestros algoritmos de Machine Learning.</p>
+        <a href="{% url 'predictor:predict' %}" class="btn btn-predecir text-white">
+            <i class="bi bi-arrow-right-circle me-2"></i>Ir al Predictor
+        </a>
+    </div>
+</section>
+{% endblock content %}

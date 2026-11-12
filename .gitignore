@@ -1,0 +1,4 @@
+/documentacion_codigo.md
+__pycache__/
+*.py[cod]
+/db.sqlite3
